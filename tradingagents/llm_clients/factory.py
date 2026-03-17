@@ -2,6 +2,7 @@ from typing import Optional
 
 from .base_client import BaseLLMClient
 from .openai_client import OpenAIClient
+from .openai_codex_client import OpenAICodexClient
 from .anthropic_client import AnthropicClient
 from .google_client import GoogleClient
 
@@ -33,6 +34,9 @@ def create_llm_client(
         ValueError: If provider is not supported
     """
     provider_lower = provider.lower()
+
+    if provider_lower == "openai-codex":
+        return OpenAICodexClient(model, base_url, **kwargs)
 
     if provider_lower in ("openai", "ollama", "openrouter"):
         return OpenAIClient(model, base_url, provider=provider_lower, **kwargs)

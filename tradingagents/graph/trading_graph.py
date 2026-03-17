@@ -143,10 +143,13 @@ class TradingAgentsGraph:
             if thinking_level:
                 kwargs["thinking_level"] = thinking_level
 
-        elif provider == "openai":
+        elif provider in ("openai", "openai-codex"):
             reasoning_effort = self.config.get("openai_reasoning_effort")
             if reasoning_effort:
                 kwargs["reasoning_effort"] = reasoning_effort
+            auth_profile_id = self.config.get("auth_profile_id")
+            if auth_profile_id:
+                kwargs["auth_profile_id"] = auth_profile_id
 
         return kwargs
 

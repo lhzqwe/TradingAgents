@@ -1,4 +1,3 @@
-import questionary
 from typing import List, Optional, Tuple, Dict
 
 from rich.console import Console
@@ -6,6 +5,17 @@ from rich.console import Console
 from cli.models import AnalystType
 
 console = Console()
+
+_QUESTIONARY = None
+
+
+def _questionary():
+    global _QUESTIONARY
+    if _QUESTIONARY is None:
+        import questionary as questionary_module
+
+        _QUESTIONARY = questionary_module
+    return _QUESTIONARY
 
 ANALYST_ORDER = [
     ("Market Analyst", AnalystType.MARKET),
@@ -17,6 +27,7 @@ ANALYST_ORDER = [
 
 def get_ticker() -> str:
     """Prompt the user to enter a ticker symbol."""
+    questionary = _questionary()
     ticker = questionary.text(
         "Enter the ticker symbol to analyze:",
         validate=lambda x: len(x.strip()) > 0 or "Please enter a valid ticker symbol.",
@@ -39,6 +50,7 @@ def get_analysis_date() -> str:
     """Prompt the user to enter a date in YYYY-MM-DD format."""
     import re
     from datetime import datetime
+    questionary = _questionary()
 
     def validate_date(date_str: str) -> bool:
         if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
@@ -70,6 +82,7 @@ def get_analysis_date() -> str:
 
 def select_analysts() -> List[AnalystType]:
     """Select analysts using an interactive checkbox."""
+    questionary = _questionary()
     choices = questionary.checkbox(
         "Select Your [Analysts Team]:",
         choices=[
@@ -96,6 +109,7 @@ def select_analysts() -> List[AnalystType]:
 
 def select_research_depth() -> int:
     """Select research depth using an interactive selection."""
+    questionary = _questionary()
 
     # Define research depth options with their corresponding values
     DEPTH_OPTIONS = [
@@ -128,6 +142,7 @@ def select_research_depth() -> int:
 
 def select_shallow_thinking_agent(provider) -> str:
     """Select shallow thinking llm engine using an interactive selection."""
+    questionary = _questionary()
 
     # Define shallow thinking llm engine options with their corresponding model names
     # Ordering: medium → light → heavy (balanced first for quick tasks)
@@ -138,6 +153,12 @@ def select_shallow_thinking_agent(provider) -> str:
             ("GPT-5 Nano - High-throughput, simple tasks", "gpt-5-nano"),
             ("GPT-5.4 - Latest frontier, 1M context", "gpt-5.4"),
             ("GPT-4.1 - Smartest non-reasoning model", "gpt-4.1"),
+        ],
+        "openai-codex": [
+            ("GPT-5.4 - Latest frontier via ChatGPT OAuth", "gpt-5.4"),
+            ("GPT-5.3 Codex Spark - Faster coding model", "gpt-5.3-codex-spark"),
+            ("GPT-5.3 Codex - Strong coding and reasoning", "gpt-5.3-codex"),
+            ("GPT-5.2 Codex - Compatible fallback", "gpt-5.2-codex"),
         ],
         "anthropic": [
             ("Claude Sonnet 4.6 - Best speed and intelligence balance", "claude-sonnet-4-6"),
@@ -193,6 +214,7 @@ def select_shallow_thinking_agent(provider) -> str:
 
 def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
+    questionary = _questionary()
 
     # Define deep thinking llm engine options with their corresponding model names
     # Ordering: heavy → medium → light (most capable first for deep tasks)
@@ -203,6 +225,12 @@ def select_deep_thinking_agent(provider) -> str:
             ("GPT-5.2 - Strong reasoning, cost-effective", "gpt-5.2"),
             ("GPT-5 Mini - Balanced speed, cost, and capability", "gpt-5-mini"),
             ("GPT-5.4 Pro - Most capable, expensive ($30/$180 per 1M tokens)", "gpt-5.4-pro"),
+        ],
+        "openai-codex": [
+            ("GPT-5.4 - Latest frontier via ChatGPT OAuth", "gpt-5.4"),
+            ("GPT-5.3 Codex - Strong coding and reasoning", "gpt-5.3-codex"),
+            ("GPT-5.2 Codex - Compatible fallback", "gpt-5.2-codex"),
+            ("GPT-5.3 Codex Spark - Faster coding model", "gpt-5.3-codex-spark"),
         ],
         "anthropic": [
             ("Claude Opus 4.6 - Most intelligent, agents and coding", "claude-opus-4-6"),
@@ -256,22 +284,27 @@ def select_deep_thinking_agent(provider) -> str:
     return choice
 
 def select_llm_provider() -> tuple[str, str]:
-    """Select the OpenAI api url using interactive selection."""
-    # Define OpenAI api options with their corresponding endpoints
+    """Select the LLM provider using interactive selection."""
+    questionary = _questionary()
     BASE_URLS = [
-        ("OpenAI", "https://api.openai.com/v1"),
-        ("Google", "https://generativelanguage.googleapis.com/v1"),
-        ("Anthropic", "https://api.anthropic.com/"),
-        ("xAI", "https://api.x.ai/v1"),
-        ("Openrouter", "https://openrouter.ai/api/v1"),
-        ("Ollama", "http://localhost:11434/v1"),
+        ("OpenAI", "openai", "https://api.openai.com/v1"),
+        (
+            "OpenAI Codex (ChatGPT OAuth)",
+            "openai-codex",
+            "https://chatgpt.com/backend-api/codex/responses",
+        ),
+        ("Google", "google", "https://generativelanguage.googleapis.com/v1"),
+        ("Anthropic", "anthropic", "https://api.anthropic.com/"),
+        ("xAI", "xai", "https://api.x.ai/v1"),
+        ("Openrouter", "openrouter", "https://openrouter.ai/api/v1"),
+        ("Ollama", "ollama", "http://localhost:11434/v1"),
     ]
     
     choice = questionary.select(
         "Select your LLM Provider:",
         choices=[
-            questionary.Choice(display, value=(display, value))
-            for display, value in BASE_URLS
+            questionary.Choice(display, value=(display, provider, value))
+            for display, provider, value in BASE_URLS
         ],
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
@@ -287,14 +320,15 @@ def select_llm_provider() -> tuple[str, str]:
         console.print("\n[red]no OpenAI backend selected. Exiting...[/red]")
         exit(1)
     
-    display_name, url = choice
+    display_name, provider, url = choice
     print(f"You selected: {display_name}\tURL: {url}")
 
-    return display_name, url
+    return provider, url
 
 
 def ask_openai_reasoning_effort() -> str:
     """Ask for OpenAI reasoning effort level."""
+    questionary = _questionary()
     choices = [
         questionary.Choice("Medium (Default)", "medium"),
         questionary.Choice("High (More thorough)", "high"),
@@ -317,6 +351,7 @@ def ask_gemini_thinking_config() -> str | None:
     Returns thinking_level: "high" or "minimal".
     Client maps to appropriate API param based on model series.
     """
+    questionary = _questionary()
     return questionary.select(
         "Select Thinking Mode:",
         choices=[

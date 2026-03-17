@@ -23,20 +23,32 @@ from rich import box
 from rich.align import Align
 from rich.rule import Rule
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.auth import OpenAICodexAuthError
 from cli.models import AnalystType
 from cli.utils import *
+from cli.auth_commands import auth_app
 from cli.announcements import fetch_announcements, display_announcements
-from cli.stats_handler import StatsCallbackHandler
+from cli.openai_codex import ensure_openai_codex_analysis_auth
 
 console = Console()
+
+LLM_PROVIDER_BACKENDS = {
+    "openai": "https://api.openai.com/v1",
+    "openai-codex": "https://chatgpt.com/backend-api/codex/responses",
+    "google": "https://generativelanguage.googleapis.com/v1",
+    "anthropic": "https://api.anthropic.com/",
+    "xai": "https://api.x.ai/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "ollama": "http://localhost:11434/v1",
+}
 
 app = typer.Typer(
     name="TradingAgents",
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+app.add_typer(auth_app, name="auth")
 
 
 # Create a deque to store recent messages with a maximum length
@@ -539,7 +551,7 @@ def get_user_selections():
     # Step 5: OpenAI backend
     console.print(
         create_question_box(
-            "Step 5: OpenAI backend", "Select which service to talk to"
+            "Step 5: LLM Provider", "Select which service to talk to"
         )
     )
     selected_llm_provider, backend_url = select_llm_provider()
@@ -566,7 +578,7 @@ def get_user_selections():
             )
         )
         thinking_level = ask_gemini_thinking_config()
-    elif provider_lower == "openai":
+    elif provider_lower in ("openai", "openai-codex"):
         console.print(
             create_question_box(
                 "Step 7: Reasoning Effort",
@@ -587,6 +599,107 @@ def get_user_selections():
         "google_thinking_level": thinking_level,
         "openai_reasoning_effort": reasoning_effort,
     }
+
+
+def _normalize_analysis_date(date_str: str) -> str:
+    try:
+        analysis_date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "Analysis date must use YYYY-MM-DD format."
+        ) from exc
+
+    if analysis_date.date() > datetime.datetime.now().date():
+        raise typer.BadParameter("Analysis date cannot be in the future.")
+
+    return date_str
+
+
+def _normalize_analysts(
+    analysts: Optional[list[str]],
+    all_analysts: bool,
+) -> list[AnalystType]:
+    if all_analysts:
+        return list(AnalystType)
+
+    if not analysts:
+        raise typer.BadParameter(
+            "Provide at least one `--analyst` or use `--all-analysts` in non-interactive mode."
+        )
+
+    valid_analysts = {analyst.value: analyst for analyst in AnalystType}
+    normalized: list[AnalystType] = []
+    seen: set[AnalystType] = set()
+
+    for raw_analyst in analysts:
+        analyst_key = raw_analyst.strip().lower()
+        analyst = valid_analysts.get(analyst_key)
+        if analyst is None:
+            raise typer.BadParameter(
+                f"Unsupported analyst `{raw_analyst}`. "
+                f"Choose from: {', '.join(valid_analysts)}."
+            )
+        if analyst not in seen:
+            normalized.append(analyst)
+            seen.add(analyst)
+
+    return normalized
+
+
+def build_non_interactive_selections(
+    ticker: str,
+    analysis_date: str,
+    analysts: Optional[list[str]],
+    all_analysts: bool,
+    research_depth: Optional[int],
+    llm_provider: Optional[str],
+    backend_url: Optional[str],
+    shallow_thinker: Optional[str],
+    deep_thinker: Optional[str],
+    google_thinking_level: Optional[str],
+    openai_reasoning_effort: Optional[str],
+    auth_profile_id: Optional[str],
+) -> dict:
+    provider = (llm_provider or DEFAULT_CONFIG["llm_provider"]).strip().lower()
+    if provider not in LLM_PROVIDER_BACKENDS:
+        raise typer.BadParameter(
+            f"Unsupported llm provider `{provider}`. "
+            f"Choose from: {', '.join(LLM_PROVIDER_BACKENDS)}."
+        )
+
+    normalized_research_depth = research_depth or 1
+    if normalized_research_depth not in (1, 3, 5):
+        raise typer.BadParameter("Research depth must be one of: 1, 3, 5.")
+
+    normalized_ticker = ticker.strip().upper()
+    if not normalized_ticker:
+        raise typer.BadParameter("Ticker cannot be empty.")
+
+    normalized_backend_url = backend_url or LLM_PROVIDER_BACKENDS[provider]
+    normalized_quick_model = shallow_thinker or (
+        "gpt-5.4" if provider == "openai-codex" else DEFAULT_CONFIG["quick_think_llm"]
+    )
+    normalized_deep_model = deep_thinker or (
+        "gpt-5.4" if provider == "openai-codex" else DEFAULT_CONFIG["deep_think_llm"]
+    )
+
+    selections = {
+        "ticker": normalized_ticker,
+        "analysis_date": _normalize_analysis_date(analysis_date.strip()),
+        "analysts": _normalize_analysts(analysts, all_analysts),
+        "research_depth": normalized_research_depth,
+        "llm_provider": provider,
+        "backend_url": normalized_backend_url,
+        "shallow_thinker": normalized_quick_model,
+        "deep_thinker": normalized_deep_model,
+        "google_thinking_level": google_thinking_level,
+        "openai_reasoning_effort": openai_reasoning_effort,
+    }
+
+    if auth_profile_id:
+        selections["auth_profile_id"] = auth_profile_id.strip()
+
+    return selections
 
 
 def get_ticker():
@@ -896,9 +1009,17 @@ def format_tool_args(args, max_length=80) -> str:
         return result[:max_length - 3] + "..."
     return result
 
-def run_analysis():
+def run_analysis(
+    selections_override: Optional[dict] = None,
+    save_report: Optional[bool] = None,
+    display_report: Optional[bool] = None,
+    save_path_override: Optional[Path] = None,
+):
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+    from cli.stats_handler import StatsCallbackHandler
+
     # First get all user selections
-    selections = get_user_selections()
+    selections = selections_override or get_user_selections()
 
     # Create config with selected research depth
     config = DEFAULT_CONFIG.copy()
@@ -911,6 +1032,11 @@ def run_analysis():
     # Provider-specific thinking configuration
     config["google_thinking_level"] = selections.get("google_thinking_level")
     config["openai_reasoning_effort"] = selections.get("openai_reasoning_effort")
+    try:
+        config = ensure_openai_codex_analysis_auth(config, console=console)
+    except OpenAICodexAuthError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
 
     # Create stats callback handler for tracking LLM/tool calls
     stats_handler = StatsCallbackHandler()
@@ -1145,15 +1271,23 @@ def run_analysis():
     console.print("\n[bold cyan]Analysis Complete![/bold cyan]\n")
 
     # Prompt to save report
-    save_choice = typer.prompt("Save report?", default="Y").strip().upper()
-    if save_choice in ("Y", "YES", ""):
+    if save_report is None:
+        save_choice = typer.prompt("Save report?", default="Y").strip().upper()
+        should_save_report = save_choice in ("Y", "YES", "")
+    else:
+        should_save_report = save_report
+
+    if should_save_report:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         default_path = Path.cwd() / "reports" / f"{selections['ticker']}_{timestamp}"
-        save_path_str = typer.prompt(
-            "Save path (press Enter for default)",
-            default=str(default_path)
-        ).strip()
-        save_path = Path(save_path_str)
+        if save_path_override is None:
+            save_path_str = typer.prompt(
+                "Save path (press Enter for default)",
+                default=str(default_path)
+            ).strip()
+            save_path = Path(save_path_str)
+        else:
+            save_path = save_path_override
         try:
             report_file = save_report_to_disk(final_state, selections["ticker"], save_path)
             console.print(f"\n[green]✓ Report saved to:[/green] {save_path.resolve()}")
@@ -1162,14 +1296,111 @@ def run_analysis():
             console.print(f"[red]Error saving report: {e}[/red]")
 
     # Prompt to display full report
-    display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
-    if display_choice in ("Y", "YES", ""):
+    if display_report is None:
+        display_choice = typer.prompt("\nDisplay full report on screen?", default="Y").strip().upper()
+        should_display_report = display_choice in ("Y", "YES", "")
+    else:
+        should_display_report = display_report
+
+    if should_display_report:
         display_complete_report(final_state)
 
 
 @app.command()
-def analyze():
-    run_analysis()
+def analyze(
+    ticker: Optional[str] = typer.Option(
+        None, "--ticker", help="Ticker symbol to analyze."
+    ),
+    analysis_date: Optional[str] = typer.Option(
+        None, "--analysis-date", help="Analysis date in YYYY-MM-DD format."
+    ),
+    analyst: Optional[list[str]] = typer.Option(
+        None,
+        "--analyst",
+        help="Repeat to select analysts: market, social, news, fundamentals.",
+    ),
+    all_analysts: bool = typer.Option(
+        False,
+        "--all-analysts",
+        help="Select all analysts in non-interactive mode.",
+    ),
+    research_depth: Optional[int] = typer.Option(
+        None, "--research-depth", help="Research depth: 1, 3, or 5."
+    ),
+    llm_provider: Optional[str] = typer.Option(
+        None, "--llm-provider", help="LLM provider id."
+    ),
+    backend_url: Optional[str] = typer.Option(
+        None, "--backend-url", help="Optional backend URL override."
+    ),
+    shallow_thinker: Optional[str] = typer.Option(
+        None, "--shallow-thinker", help="Quick-thinking model id."
+    ),
+    deep_thinker: Optional[str] = typer.Option(
+        None, "--deep-thinker", help="Deep-thinking model id."
+    ),
+    google_thinking_level: Optional[str] = typer.Option(
+        None, "--google-thinking-level", help="Google thinking mode override."
+    ),
+    openai_reasoning_effort: Optional[str] = typer.Option(
+        None, "--openai-reasoning-effort", help="OpenAI reasoning effort override."
+    ),
+    auth_profile_id: Optional[str] = typer.Option(
+        None, "--auth-profile-id", help="OAuth profile id for openai-codex."
+    ),
+    save_report: Optional[bool] = typer.Option(
+        None, "--save-report/--no-save-report", help="Save the final report without prompting."
+    ),
+    display_report: Optional[bool] = typer.Option(
+        None, "--display-report/--no-display-report", help="Display the full report without prompting."
+    ),
+    save_path: Optional[Path] = typer.Option(
+        None, "--save-path", help="Output directory used when saving the final report."
+    ),
+):
+    selection_override_requested = any(
+        value is not None
+        for value in (
+            ticker,
+            analysis_date,
+            research_depth,
+            llm_provider,
+            backend_url,
+            shallow_thinker,
+            deep_thinker,
+            google_thinking_level,
+            openai_reasoning_effort,
+            auth_profile_id,
+        )
+    ) or bool(analyst) or all_analysts
+
+    selections_override = None
+    if selection_override_requested:
+        if ticker is None or analysis_date is None:
+            raise typer.BadParameter(
+                "`--ticker` and `--analysis-date` are required in non-interactive mode."
+            )
+        selections_override = build_non_interactive_selections(
+            ticker=ticker,
+            analysis_date=analysis_date,
+            analysts=analyst,
+            all_analysts=all_analysts,
+            research_depth=research_depth,
+            llm_provider=llm_provider,
+            backend_url=backend_url,
+            shallow_thinker=shallow_thinker,
+            deep_thinker=deep_thinker,
+            google_thinking_level=google_thinking_level,
+            openai_reasoning_effort=openai_reasoning_effort,
+            auth_profile_id=auth_profile_id,
+        )
+
+    run_analysis(
+        selections_override=selections_override,
+        save_report=save_report,
+        display_report=display_report,
+        save_path_override=save_path,
+    )
 
 
 if __name__ == "__main__":

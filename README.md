@@ -117,9 +117,11 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-### Required APIs
+### Required APIs and Auth
 
-TradingAgents supports multiple LLM providers. Set the API key for your chosen provider:
+TradingAgents supports multiple LLM providers.
+
+For direct API providers, set the API key for your chosen provider:
 
 ```bash
 export OPENAI_API_KEY=...          # OpenAI (GPT)
@@ -129,6 +131,25 @@ export XAI_API_KEY=...             # xAI (Grok)
 export OPENROUTER_API_KEY=...      # OpenRouter
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
 ```
+
+For ChatGPT OAuth, use the dedicated `openai-codex` provider instead of `OPENAI_API_KEY`:
+
+```bash
+tradingagents auth login --provider openai-codex
+tradingagents auth status
+```
+
+This stores refreshable OAuth profiles in `${TRADINGAGENTS_STATE_DIR:-~/.tradingagents}/auth-profiles.json`.
+TradingAgents first tries to reuse `~/.codex/auth.json` if you are already signed in to the OpenAI Codex CLI.
+If localhost callback is unavailable, use:
+
+```bash
+tradingagents auth login --provider openai-codex --headless
+```
+
+Paste the full redirect URL, or `code=...&state=...`, back into the terminal.
+
+`openai-codex` is only for ChatGPT/Codex chat inference. It does not replace other OpenAI API features such as embeddings, audio, or image APIs.
 
 For local models, configure Ollama with `llm_provider: "ollama"` in your config.
 
@@ -144,6 +165,7 @@ You can also try out the CLI directly by running:
 python -m cli.main
 ```
 You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
+If you choose `OpenAI Codex (ChatGPT OAuth)` and no local OAuth profile exists, the CLI will start the login flow automatically in interactive terminals.
 
 <p align="center">
   <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
@@ -163,7 +185,7 @@ An interface will appear showing results as they load, letting you track the age
 
 ### Implementation Details
 
-We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, Google, Anthropic, xAI, OpenRouter, and Ollama.
+We built TradingAgents with LangGraph to ensure flexibility and modularity. The framework supports multiple LLM providers: OpenAI, OpenAI Codex (ChatGPT OAuth), Google, Anthropic, xAI, OpenRouter, and Ollama.
 
 ### Python Usage
 
@@ -187,7 +209,7 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # openai, google, anthropic, xai, openrouter, ollama
+config["llm_provider"] = "openai"        # openai, openai-codex, google, anthropic, xai, openrouter, ollama
 config["deep_think_llm"] = "gpt-5.2"     # Model for complex reasoning
 config["quick_think_llm"] = "gpt-5-mini" # Model for quick tasks
 config["max_debate_rounds"] = 2
@@ -195,6 +217,16 @@ config["max_debate_rounds"] = 2
 ta = TradingAgentsGraph(debug=True, config=config)
 _, decision = ta.propagate("NVDA", "2026-01-15")
 print(decision)
+```
+
+For ChatGPT OAuth:
+
+```python
+config = DEFAULT_CONFIG.copy()
+config["llm_provider"] = "openai-codex"
+config["deep_think_llm"] = "gpt-5.4"
+config["quick_think_llm"] = "gpt-5.4"
+config["auth_profile_id"] = "openai-codex:default"  # or openai-codex:<email>
 ```
 
 See `tradingagents/default_config.py` for all configuration options.
