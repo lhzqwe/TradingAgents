@@ -17,8 +17,29 @@ def get_YFin_data_online(
     # Create ticker object
     ticker = yf.Ticker(symbol.upper())
 
-    # Fetch historical data for the specified date range
-    data = ticker.history(start=start_date, end=end_date)
+    try:
+        # Fetch historical data for the specified date range
+        data = ticker.history(start=start_date, end=end_date)
+    except Exception:
+        try:
+            # Some environments are rate-limited on Ticker.history() but still
+            # allow the download endpoint to return the same OHLCV data.
+            data = yf.download(
+                symbol.upper(),
+                start=start_date,
+                end=end_date,
+                multi_level_index=False,
+                progress=False,
+                auto_adjust=False,
+            )
+        except Exception as exc:
+            return (
+                f"Error retrieving stock data for symbol '{symbol}' between "
+                f"{start_date} and {end_date}: {exc}"
+            )
+
+        if getattr(data, "columns", None) is not None and getattr(data.columns, "nlevels", 1) > 1:
+            data.columns = data.columns.get_level_values(0)
 
     # Check if data is empty
     if data.empty:

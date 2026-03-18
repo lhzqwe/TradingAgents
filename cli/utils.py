@@ -364,3 +364,20 @@ def ask_gemini_thinking_config() -> str | None:
             ("pointer", "fg:green noinherit"),
         ]),
     ).ask()
+
+
+def select_report_language() -> str:
+    """Select the output language for all generated reports."""
+    questionary = _questionary()
+    return questionary.select(
+        "Select Report Language:",
+        choices=[
+            questionary.Choice("English", "english"),
+            questionary.Choice("简体中文", "chinese"),
+        ],
+        style=questionary.Style([
+            ("selected", "fg:blue noinherit"),
+            ("highlighted", "fg:blue noinherit"),
+            ("pointer", "fg:blue noinherit"),
+        ]),
+    ).ask()

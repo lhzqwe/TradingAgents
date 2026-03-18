@@ -9,6 +9,10 @@ from typing import Dict, Any, Tuple, List, Optional
 from langgraph.prebuilt import ToolNode
 
 from tradingagents.llm_clients import create_llm_client
+from tradingagents.llm_clients.report_language import (
+    normalize_report_language,
+    wrap_llm_for_report_language,
+)
 
 from tradingagents.agents import *
 from tradingagents.default_config import DEFAULT_CONFIG
@@ -61,6 +65,9 @@ class TradingAgentsGraph:
         self.debug = debug
         self.config = config or DEFAULT_CONFIG
         self.callbacks = callbacks or []
+        self.report_language = normalize_report_language(
+            self.config.get("report_language")
+        )
 
         # Update the interface's config
         set_config(self.config)
@@ -91,8 +98,16 @@ class TradingAgentsGraph:
             **llm_kwargs,
         )
 
-        self.deep_thinking_llm = deep_client.get_llm()
-        self.quick_thinking_llm = quick_client.get_llm()
+        self.deep_thinking_llm_raw = deep_client.get_llm()
+        self.quick_thinking_llm_raw = quick_client.get_llm()
+        self.deep_thinking_llm = wrap_llm_for_report_language(
+            self.deep_thinking_llm_raw,
+            self.report_language,
+        )
+        self.quick_thinking_llm = wrap_llm_for_report_language(
+            self.quick_thinking_llm_raw,
+            self.report_language,
+        )
         
         # Initialize memories
         self.bull_memory = FinancialSituationMemory("bull_memory", self.config)
@@ -122,8 +137,8 @@ class TradingAgentsGraph:
         )
 
         self.propagator = Propagator()
-        self.reflector = Reflector(self.quick_thinking_llm)
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.reflector = Reflector(self.quick_thinking_llm_raw)
+        self.signal_processor = SignalProcessor(self.quick_thinking_llm_raw)
 
         # State tracking
         self.curr_state = None

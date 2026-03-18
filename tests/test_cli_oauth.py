@@ -134,6 +134,8 @@ class CliOpenAICodexTests(unittest.TestCase):
                     "low",
                     "--auth-profile-id",
                     "openai-codex:user@example.com",
+                    "--report-language",
+                    "chinese",
                     "--no-save-report",
                     "--no-display-report",
                 ],
@@ -153,6 +155,7 @@ class CliOpenAICodexTests(unittest.TestCase):
         self.assertEqual(selections["deep_thinker"], "gpt-5.4")
         self.assertEqual(selections["openai_reasoning_effort"], "low")
         self.assertEqual(selections["auth_profile_id"], "openai-codex:user@example.com")
+        self.assertEqual(selections["report_language"], "chinese")
         self.assertEqual(len(selections["analysts"]), 4)
 
 
