@@ -10,7 +10,9 @@ from .y_finance import (
     get_income_statement as get_yfinance_income_statement,
     get_insider_transactions as get_yfinance_insider_transactions,
 )
+from .twitter_cli_social import get_social_posts_twitter_cli
 from .yfinance_news import get_news_yfinance, get_global_news_yfinance
+from .tigeropen_stock import get_stock_data_tigeropen, get_indicator_tigeropen
 from .alpha_vantage import (
     get_stock as get_alpha_vantage_stock,
     get_indicator as get_alpha_vantage_indicator,
@@ -23,9 +25,45 @@ from .alpha_vantage import (
     get_global_news as get_alpha_vantage_global_news,
 )
 from .alpha_vantage_common import AlphaVantageRateLimitError
+from .tigeropen_common import TigerOpenRecoverableError
+from .market_symbol import MARKET_HK, resolve_market_and_symbols
+from .config import get_runtime_context
 
 # Configuration and routing logic
 from .config import get_config
+
+_NO_DATA_PREFIXES = {
+    "get_stock_data": (
+        "No data found for symbol ",
+    ),
+    "get_fundamentals": (
+        "No fundamentals data found for symbol ",
+    ),
+    "get_balance_sheet": (
+        "No balance sheet data found for symbol ",
+    ),
+    "get_cashflow": (
+        "No cash flow data found for symbol ",
+    ),
+    "get_income_statement": (
+        "No income statement data found for symbol ",
+    ),
+    "get_insider_transactions": (
+        "No insider transactions data found for symbol ",
+    ),
+    "get_news": (
+        "No news found for ",
+    ),
+    "get_global_news": (
+        "No global news found for ",
+    ),
+}
+
+_NO_DATA_SUBSTRINGS = {
+    "get_indicators": (
+        "No data available for the specified date range.",
+    ),
+}
 
 # Tools organized by category
 TOOLS_CATEGORIES = {
@@ -50,6 +88,12 @@ TOOLS_CATEGORIES = {
             "get_income_statement"
         ]
     },
+    "social_data": {
+        "description": "Social media posts",
+        "tools": [
+            "get_social_posts"
+        ]
+    },
     "news_data": {
         "description": "News and insider data",
         "tools": [
@@ -63,6 +107,8 @@ TOOLS_CATEGORIES = {
 VENDOR_LIST = [
     "yfinance",
     "alpha_vantage",
+    "tigeropen",
+    "twitter_cli",
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -71,11 +117,13 @@ VENDOR_METHODS = {
     "get_stock_data": {
         "alpha_vantage": get_alpha_vantage_stock,
         "yfinance": get_YFin_data_online,
+        "tigeropen": get_stock_data_tigeropen,
     },
     # technical_indicators
     "get_indicators": {
         "alpha_vantage": get_alpha_vantage_indicator,
         "yfinance": get_stock_stats_indicators_window,
+        "tigeropen": get_indicator_tigeropen,
     },
     # fundamental_data
     "get_fundamentals": {
@@ -93,6 +141,10 @@ VENDOR_METHODS = {
     "get_income_statement": {
         "alpha_vantage": get_alpha_vantage_income_statement,
         "yfinance": get_yfinance_income_statement,
+    },
+    # social_data
+    "get_social_posts": {
+        "twitter_cli": get_social_posts_twitter_cli,
     },
     # news_data
     "get_news": {
@@ -134,8 +186,13 @@ def get_vendor(category: str, method: str = None) -> str:
 def route_to_vendor(method: str, *args, **kwargs):
     """Route method calls to appropriate vendor implementation with fallback support."""
     category = get_category_for_method(method)
-    vendor_config = get_vendor(category, method)
-    primary_vendors = [v.strip() for v in vendor_config.split(',')]
+    market_context = get_runtime_context().get("market")
+    primary_vendors, resolved_symbol = _build_vendor_chain(
+        method,
+        category,
+        market_context,
+        args,
+    )
 
     if method not in VENDOR_METHODS:
         raise ValueError(f"Method '{method}' not supported")
@@ -147,16 +204,127 @@ def route_to_vendor(method: str, *args, **kwargs):
         if vendor not in fallback_vendors:
             fallback_vendors.append(vendor)
 
+    last_no_data_result = None
     for vendor in fallback_vendors:
         if vendor not in VENDOR_METHODS[method]:
             continue
 
         vendor_impl = VENDOR_METHODS[method][vendor]
         impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
+        normalized_args = _normalize_args_for_vendor(
+            method,
+            vendor,
+            args,
+            resolved_symbol,
+        )
 
         try:
-            return impl_func(*args, **kwargs)
-        except AlphaVantageRateLimitError:
-            continue  # Only rate limits trigger fallback
+            result = impl_func(*normalized_args, **kwargs)
+        except Exception as exc:
+            if _is_recoverable_vendor_exception(vendor, exc):
+                continue
+            raise
+        if _is_no_data_result(method, result):
+            last_no_data_result = result
+            continue
+        return result
 
+    if last_no_data_result is not None:
+        return last_no_data_result
     raise RuntimeError(f"No available vendor for '{method}'")
+
+
+def _build_vendor_chain(
+    method: str,
+    category: str,
+    market_context: str | None,
+    args: tuple,
+) -> tuple[list[str], object | None]:
+    vendor_config = get_vendor(category, method)
+    primary_vendors = [v.strip() for v in vendor_config.split(",") if v.strip()]
+    resolved_symbol = None
+
+    if _method_uses_symbol(method) and args:
+        config = get_config()
+        market_routing = config.get("market_routing", {})
+        auto_detect_hk = market_routing.get("auto_detect_hk", True)
+        resolver_market = market_context
+        if not auto_detect_hk and (market_context is None or market_context == "AUTO"):
+            resolver_market = "US"
+
+        resolved_symbol = resolve_market_and_symbols(args[0], resolver_market)
+        if resolved_symbol.market == MARKET_HK:
+            if method == "get_stock_data":
+                hk_vendor = market_routing.get("hk_stock_vendor")
+                if hk_vendor:
+                    primary_vendors.insert(0, hk_vendor)
+            elif method == "get_indicators":
+                hk_vendor = market_routing.get("hk_indicator_vendor")
+                if hk_vendor:
+                    primary_vendors.insert(0, hk_vendor)
+
+    deduped_vendors = []
+    for vendor in primary_vendors:
+        if vendor not in deduped_vendors:
+            deduped_vendors.append(vendor)
+
+    return deduped_vendors, resolved_symbol
+
+
+def _normalize_args_for_vendor(method: str, vendor: str, args: tuple, resolved_symbol) -> tuple:
+    if not _method_uses_symbol(method) or not args or resolved_symbol is None:
+        return args
+
+    normalized_args = list(args)
+    normalized_args[0] = _get_vendor_symbol(vendor, resolved_symbol)
+    return tuple(normalized_args)
+
+
+def _get_vendor_symbol(vendor: str, resolved_symbol) -> str:
+    if vendor == "tigeropen":
+        return resolved_symbol.tiger_symbol
+    return resolved_symbol.yfinance_symbol
+
+
+def _method_uses_symbol(method: str) -> bool:
+    return method in {
+        "get_stock_data",
+        "get_indicators",
+        "get_fundamentals",
+        "get_balance_sheet",
+        "get_cashflow",
+        "get_income_statement",
+        "get_social_posts",
+        "get_news",
+        "get_insider_transactions",
+    }
+
+
+def _is_no_data_result(method: str, result) -> bool:
+    if not isinstance(result, str):
+        return False
+
+    normalized_result = result.strip()
+    if not normalized_result:
+        return False
+
+    for prefix in _NO_DATA_PREFIXES.get(method, ()):
+        if normalized_result.startswith(prefix):
+            return True
+
+    for substring in _NO_DATA_SUBSTRINGS.get(method, ()):
+        if substring in normalized_result:
+            return True
+
+    return False
+
+
+def _is_recoverable_vendor_exception(vendor: str, exc: Exception) -> bool:
+    if isinstance(exc, (AlphaVantageRateLimitError, TigerOpenRecoverableError)):
+        return True
+
+    return (
+        vendor == "alpha_vantage"
+        and isinstance(exc, ValueError)
+        and "ALPHA_VANTAGE_API_KEY environment variable is not set." in str(exc)
+    )

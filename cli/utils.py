@@ -3,6 +3,7 @@ from typing import List, Optional, Tuple, Dict
 from rich.console import Console
 
 from cli.models import AnalystType
+from tradingagents.dataflows.market_symbol import MARKET_AUTO, MARKET_HK, MARKET_US
 
 console = Console()
 
@@ -78,6 +79,34 @@ def get_analysis_date() -> str:
         exit(1)
 
     return date.strip()
+
+
+def select_market() -> str:
+    """Select the target market/exchange."""
+    questionary = _questionary()
+
+    choice = questionary.select(
+        "Select the market/exchange:",
+        choices=[
+            questionary.Choice("Auto detect", MARKET_AUTO),
+            questionary.Choice("US", MARKET_US),
+            questionary.Choice("HK", MARKET_HK),
+        ],
+        instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
+        style=questionary.Style(
+            [
+                ("selected", "fg:cyan noinherit"),
+                ("highlighted", "fg:cyan noinherit"),
+                ("pointer", "fg:cyan noinherit"),
+            ]
+        ),
+    ).ask()
+
+    if choice is None:
+        console.print("\n[red]No market selected. Exiting...[/red]")
+        exit(1)
+
+    return choice
 
 
 def select_analysts() -> List[AnalystType]:

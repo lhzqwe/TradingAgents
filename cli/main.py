@@ -25,6 +25,7 @@ from rich.rule import Rule
 
 from tradingagents.default_config import DEFAULT_CONFIG
 from tradingagents.auth import OpenAICodexAuthError
+from tradingagents.dataflows.market_symbol import normalize_market_input
 from tradingagents.llm_clients.report_language import normalize_report_language
 from cli.models import AnalystType
 from cli.utils import *
@@ -589,17 +590,28 @@ def get_user_selections():
     default_date = datetime.datetime.now().strftime("%Y-%m-%d")
     console.print(
         create_question_box(
-            "Step 2: Analysis Date",
+            "Step 2: Market/Exchange",
+            "Select the market or leave it on auto detect",
+            "AUTO",
+        )
+    )
+    selected_market = select_market()
+
+    # Step 3: Analysis date
+    default_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    console.print(
+        create_question_box(
+            "Step 3: Analysis Date",
             "Enter the analysis date (YYYY-MM-DD)",
             default_date,
         )
     )
     analysis_date = get_analysis_date()
 
-    # Step 3: Select analysts
+    # Step 4: Select analysts
     console.print(
         create_question_box(
-            "Step 3: Analysts Team", "Select your LLM analyst agents for the analysis"
+            "Step 4: Analysts Team", "Select your LLM analyst agents for the analysis"
         )
     )
     selected_analysts = select_analysts()
@@ -607,32 +619,32 @@ def get_user_selections():
         f"[green]Selected analysts:[/green] {', '.join(analyst.value for analyst in selected_analysts)}"
     )
 
-    # Step 4: Research depth
+    # Step 5: Research depth
     console.print(
         create_question_box(
-            "Step 4: Research Depth", "Select your research depth level"
+            "Step 5: Research Depth", "Select your research depth level"
         )
     )
     selected_research_depth = select_research_depth()
 
-    # Step 5: OpenAI backend
+    # Step 6: OpenAI backend
     console.print(
         create_question_box(
-            "Step 5: LLM Provider", "Select which service to talk to"
+            "Step 6: LLM Provider", "Select which service to talk to"
         )
     )
     selected_llm_provider, backend_url = select_llm_provider()
     
-    # Step 6: Thinking agents
+    # Step 7: Thinking agents
     console.print(
         create_question_box(
-            "Step 6: Thinking Agents", "Select your thinking agents for analysis"
+            "Step 7: Thinking Agents", "Select your thinking agents for analysis"
         )
     )
     selected_shallow_thinker = select_shallow_thinking_agent(selected_llm_provider)
     selected_deep_thinker = select_deep_thinking_agent(selected_llm_provider)
 
-    # Step 7: Provider-specific thinking configuration
+    # Step 8: Provider-specific thinking configuration
     thinking_level = None
     reasoning_effort = None
 
@@ -640,7 +652,7 @@ def get_user_selections():
     if provider_lower == "google":
         console.print(
             create_question_box(
-                "Step 7: Thinking Mode",
+                "Step 8: Thinking Mode",
                 "Configure Gemini thinking mode"
             )
         )
@@ -648,7 +660,7 @@ def get_user_selections():
     elif provider_lower in ("openai", "openai-codex"):
         console.print(
             create_question_box(
-                "Step 7: Reasoning Effort",
+                "Step 8: Reasoning Effort",
                 "Configure OpenAI reasoning effort level"
             )
         )
@@ -656,7 +668,7 @@ def get_user_selections():
 
     console.print(
         create_question_box(
-            "Step 8: Report Language",
+            "Step 9: Report Language",
             "Select the output language for all generated reports"
         )
     )
@@ -664,6 +676,7 @@ def get_user_selections():
 
     return {
         "ticker": selected_ticker,
+        "market": selected_market,
         "analysis_date": analysis_date,
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
@@ -724,6 +737,7 @@ def _normalize_analysts(
 
 def build_non_interactive_selections(
     ticker: str,
+    market: Optional[str],
     analysis_date: str,
     analysts: Optional[list[str]],
     all_analysts: bool,
@@ -751,6 +765,7 @@ def build_non_interactive_selections(
     normalized_ticker = ticker.strip().upper()
     if not normalized_ticker:
         raise typer.BadParameter("Ticker cannot be empty.")
+    normalized_market = normalize_market_input(market)
 
     normalized_backend_url = backend_url or LLM_PROVIDER_BACKENDS[provider]
     normalized_quick_model = shallow_thinker or (
@@ -766,6 +781,7 @@ def build_non_interactive_selections(
 
     selections = {
         "ticker": normalized_ticker,
+        "market": normalized_market,
         "analysis_date": _normalize_analysis_date(analysis_date.strip()),
         "analysts": _normalize_analysts(analysts, all_analysts),
         "research_depth": normalized_research_depth,
@@ -1216,6 +1232,7 @@ def run_analysis(
 
         # Add initial messages
         message_buffer.add_message("System", f"Selected ticker: {selections['ticker']}")
+        message_buffer.add_message("System", f"Selected market: {selections['market']}")
         message_buffer.add_message(
             "System", f"Analysis date: {selections['analysis_date']}"
         )
@@ -1238,7 +1255,9 @@ def run_analysis(
 
         # Initialize state and get graph args with callbacks
         init_agent_state = graph.propagator.create_initial_state(
-            selections["ticker"], selections["analysis_date"]
+            selections["ticker"],
+            selections["analysis_date"],
+            market=selections["market"],
         )
         # Pass callbacks to graph config for tool execution tracking
         # (LLM tracking is handled separately via LLM constructor)
@@ -1417,6 +1436,9 @@ def analyze(
     ticker: Optional[str] = typer.Option(
         None, "--ticker", help="Ticker symbol to analyze."
     ),
+    market: Optional[str] = typer.Option(
+        None, "--market", help="Target market/exchange: AUTO, US, or HK."
+    ),
     analysis_date: Optional[str] = typer.Option(
         None, "--analysis-date", help="Analysis date in YYYY-MM-DD format."
     ),
@@ -1473,6 +1495,7 @@ def analyze(
         value is not None
         for value in (
             ticker,
+            market,
             analysis_date,
             research_depth,
             llm_provider,
@@ -1494,6 +1517,7 @@ def analyze(
             )
         selections_override = build_non_interactive_selections(
             ticker=ticker,
+            market=market,
             analysis_date=analysis_date,
             analysts=analyst,
             all_analysts=all_analysts,

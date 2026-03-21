@@ -1,0 +1,3 @@
+[submodule "external/twitter-cli"]
+	path = external/twitter-cli
+	url = https://github.com/public-clis/twitter-cli.git

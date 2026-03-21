@@ -24,10 +24,37 @@ DEFAULT_CONFIG = {
     # Data vendor configuration
     # Category-level configuration (default for all tools in category)
     "data_vendors": {
-        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance
-        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance
+        "core_stock_apis": "yfinance",       # Options: alpha_vantage, yfinance, tigeropen
+        "technical_indicators": "yfinance",  # Options: alpha_vantage, yfinance, tigeropen
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
+        "social_data": "twitter_cli",        # Options: twitter_cli
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+    },
+    "market_routing": {
+        "hk_stock_vendor": "tigeropen",
+        "hk_indicator_vendor": "tigeropen",
+        "auto_detect_hk": True,
+    },
+    "tigeropen": {
+        "props_path": os.getenv("TIGER_CONFIG_PATH"),
+        "private_key_path": os.getenv("TIGER_PRIVATE_KEY_PATH"),
+        "private_key_pk1": os.getenv("TIGER_PRIVATE_KEY_PK1"),
+        "tiger_id": os.getenv("TIGER_ID"),
+        "account": os.getenv("TIGER_ACCOUNT"),
+        "license": os.getenv("TIGER_LICENSE"),
+        "secret_key": os.getenv("TIGER_SECRET_KEY"),
+        "lang": "en_US",
+        "right": "BR",
+        "with_fundamental": True,
+        "indicator_history_years": 15,
+        "symbol_overrides": {},
+    },
+    "twitter_cli": {
+        "submodule_path": "external/twitter-cli",
+        "max_posts": 20,
+        "search_product": "Latest",
+        "timeout_seconds": 30,
+        "query_overrides": {},
     },
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {

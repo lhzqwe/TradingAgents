@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 import yfinance as yf
 import os
 from .stockstats_utils import StockstatsUtils, _clean_dataframe
+from .config import get_runtime_context
 
 def get_YFin_data_online(
     symbol: Annotated[str, "ticker symbol of the company"],
@@ -154,6 +155,7 @@ def get_stock_stats_indicators_window(
             f"Indicator {indicator} is not supported. Please choose from: {list(best_ind_params.keys())}"
         )
 
+    curr_date = _resolve_indicator_date(curr_date)
     end_date = curr_date
     curr_date_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     before = curr_date_dt - relativedelta(days=look_back_days)
@@ -296,6 +298,7 @@ def get_stockstats_indicator(
     ],
 ) -> str:
 
+    curr_date = _resolve_indicator_date(curr_date)
     curr_date_dt = datetime.strptime(curr_date, "%Y-%m-%d")
     curr_date = curr_date_dt.strftime("%Y-%m-%d")
 
@@ -483,3 +486,15 @@ def get_insider_transactions(
         
     except Exception as e:
         return f"Error retrieving insider transactions for {ticker}: {str(e)}"
+
+
+def _resolve_indicator_date(curr_date: str) -> str:
+    try:
+        datetime.strptime(curr_date, "%Y-%m-%d")
+        return curr_date
+    except ValueError:
+        fallback_date = get_runtime_context().get("trade_date")
+        if fallback_date:
+            datetime.strptime(fallback_date, "%Y-%m-%d")
+            return fallback_date
+        raise

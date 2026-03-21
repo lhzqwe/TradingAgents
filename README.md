@@ -104,6 +104,7 @@ Clone TradingAgents:
 ```bash
 git clone https://github.com/TauricResearch/TradingAgents.git
 cd TradingAgents
+git submodule update --init --recursive
 ```
 
 Create a virtual environment in any of your favorite environment managers:
@@ -132,6 +133,34 @@ export OPENROUTER_API_KEY=...      # OpenRouter
 export ALPHA_VANTAGE_API_KEY=...   # Alpha Vantage
 ```
 
+For direct X/Twitter sentiment collection, TradingAgents uses the pinned `external/twitter-cli` submodule. Authentication follows `twitter-cli`'s browser-cookie workflow or explicit cookie env vars:
+
+```bash
+export TWITTER_AUTH_TOKEN=...
+export TWITTER_CT0=...
+export TWITTER_BROWSER=chrome      # Optional: arc, chrome, edge, firefox, brave
+export TWITTER_PROXY=http://127.0.0.1:7890
+```
+
+For HK stock price data and technical indicators, TradingAgents can route to Tiger OpenAPI:
+
+```bash
+export TIGER_CONFIG_PATH=...       # directory containing tiger_openapi_config.properties
+# or provide explicit credentials instead of props_path
+export TIGER_PRIVATE_KEY_PATH=...
+export TIGER_ID=...
+export TIGER_ACCOUNT=...
+export TIGER_LICENSE=...
+export TIGER_SECRET_KEY=...
+```
+
+If `TIGER_CONFIG_PATH` is not set, TradingAgents also auto-checks:
+`${TRADINGAGENTS_STATE_DIR:-~/.tradingagents}/tiger/tiger_openapi_config.properties`
+
+This is the recommended location for a replaceable Tiger credential file.
+
+If X/Twitter auth is unavailable, the Social Analyst automatically falls back to company news and clearly labels the report as an inferred sentiment proxy.
+
 For ChatGPT OAuth, use the dedicated `openai-codex` provider instead of `OPENAI_API_KEY`:
 
 ```bash
@@ -158,6 +187,11 @@ Alternatively, copy `.env.example` to `.env` and fill in your keys:
 cp .env.example .env
 ```
 
+After pulling updates, keep the submodule in sync:
+```bash
+git submodule update --init --recursive
+```
+
 ### CLI Usage
 
 You can also try out the CLI directly by running:
@@ -167,11 +201,15 @@ python -m cli.main
 You will see a screen where you can select your desired tickers, date, LLMs, research depth, etc.
 If you choose `OpenAI Codex (ChatGPT OAuth)` and no local OAuth profile exists, the CLI will start the login flow automatically in interactive terminals.
 
+For HK stocks, pass `--market HK` to force Tiger for `get_stock_data` and `get_indicators`. Supported HK ticker forms include `0700.HK`, `00700.HK`, `HK.00700`, and bare numeric codes like `700`.
+
 <p align="center">
   <img src="assets/cli/cli_init.png" width="100%" style="display: inline-block; margin: 0 2%;">
 </p>
 
 An interface will appear showing results as they load, letting you track the agent's progress as it runs.
+
+When the Social Analyst is enabled, the workflow reads direct X/Twitter posts through the bundled `twitter-cli` submodule before falling back to company news.
 
 <p align="center">
   <img src="assets/cli/cli_news.png" width="100%" style="display: inline-block; margin: 0 2%;">
@@ -198,7 +236,7 @@ from tradingagents.default_config import DEFAULT_CONFIG
 ta = TradingAgentsGraph(debug=True, config=DEFAULT_CONFIG.copy())
 
 # forward propagate
-_, decision = ta.propagate("NVDA", "2026-01-15")
+_, decision = ta.propagate("NVDA", "2026-01-15", market="US")
 print(decision)
 ```
 
@@ -213,9 +251,13 @@ config["llm_provider"] = "openai"        # openai, openai-codex, google, anthrop
 config["deep_think_llm"] = "gpt-5.2"     # Model for complex reasoning
 config["quick_think_llm"] = "gpt-5-mini" # Model for quick tasks
 config["max_debate_rounds"] = 2
+config["data_vendors"]["social_data"] = "twitter_cli"
+config["market_routing"]["hk_stock_vendor"] = "tigeropen"
+config["market_routing"]["hk_indicator_vendor"] = "tigeropen"
+config["twitter_cli"]["query_overrides"] = {"NVDA": "$NVDA OR NVIDIA"}
 
 ta = TradingAgentsGraph(debug=True, config=config)
-_, decision = ta.propagate("NVDA", "2026-01-15")
+_, decision = ta.propagate("0700.HK", "2026-01-15", market="HK")
 print(decision)
 ```
 

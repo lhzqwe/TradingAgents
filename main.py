@@ -19,17 +19,30 @@ config["max_debate_rounds"] = 1  # Increase debate rounds
 
 # Configure data vendors (default uses yfinance, no extra API keys needed)
 config["data_vendors"] = {
-    "core_stock_apis": "yfinance",           # Options: alpha_vantage, yfinance
-    "technical_indicators": "yfinance",      # Options: alpha_vantage, yfinance
+    "core_stock_apis": "yfinance",           # Options: alpha_vantage, yfinance, tigeropen
+    "technical_indicators": "yfinance",      # Options: alpha_vantage, yfinance, tigeropen
     "fundamental_data": "yfinance",          # Options: alpha_vantage, yfinance
+    "social_data": "twitter_cli",            # Options: twitter_cli
     "news_data": "yfinance",                 # Options: alpha_vantage, yfinance
+}
+config["market_routing"] = {
+    "hk_stock_vendor": "tigeropen",
+    "hk_indicator_vendor": "tigeropen",
+    "auto_detect_hk": True,
+}
+config["twitter_cli"] = {
+    "submodule_path": "external/twitter-cli",
+    "max_posts": 20,
+    "search_product": "Latest",
+    "timeout_seconds": 30,
+    "query_overrides": {},
 }
 
 # Initialize with custom config
 ta = TradingAgentsGraph(debug=True, config=config)
 
 # forward propagate
-_, decision = ta.propagate("NVDA", "2024-05-10")
+_, decision = ta.propagate("NVDA", "2024-05-10", market="US")
 print(decision)
 
 # Memorize mistakes and reflect

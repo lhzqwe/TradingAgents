@@ -1,3 +1,7 @@
+beautifulsoup4
+browser-cookie3
+click
+curl_cffi
 typing-extensions
 langchain-core
 langchain-openai
@@ -5,6 +9,7 @@ langchain-experimental
 pandas
 yfinance
 stockstats
+tigeropen
 langgraph
 rank-bm25
 setuptools
@@ -15,7 +20,9 @@ tqdm
 pytz
 redis
 rich
+PyYAML
 typer
 questionary
 langchain_anthropic
 langchain-google-genai
+xclienttransaction
