@@ -1,5 +1,7 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from tradingagents.agents.utils.agent_utils import get_social_posts
+from tradingagents.agents.utils.agent_utils import (
+    get_social_posts,
+)
 
 
 def create_social_media_analyst(llm):
@@ -13,7 +15,8 @@ def create_social_media_analyst(llm):
 
         system_message = (
             "You are a social media and public sentiment researcher tasked with analyzing direct X/Twitter discussion, market narratives, and company-specific sentiment for the past week. Use the get_social_posts(ticker, start_date, end_date) tool as your primary source for direct X/Twitter posts. If the tool indicates fallback or unavailable X/Twitter data, you must explicitly state that there were no direct X/Twitter posts available and that sentiment is inferred from company news instead. Do not simply state that sentiment is mixed; provide detailed, fine-grained analysis that helps traders make decisions."
-            + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read.""",
+            + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
+            ,
         )
 
         prompt = ChatPromptTemplate.from_messages(

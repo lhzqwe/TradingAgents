@@ -35,7 +35,9 @@ from tradingagents.agents.utils.agent_utils import (
     get_social_posts,
     get_news,
     get_insider_transactions,
-    get_global_news
+    get_global_news,
+    get_polymarket_macro_context,
+    get_polymarket_geopolitical_context,
 )
 
 from .conditional_logic import ConditionalLogic
@@ -192,6 +194,9 @@ class TradingAgentsGraph:
                     get_news,
                     get_global_news,
                     get_insider_transactions,
+                    # Prediction market context
+                    get_polymarket_macro_context,
+                    get_polymarket_geopolitical_context,
                 ]
             ),
             "fundamentals": ToolNode(
@@ -252,6 +257,7 @@ class TradingAgentsGraph:
             "sentiment_report": final_state["sentiment_report"],
             "news_report": final_state["news_report"],
             "fundamentals_report": final_state["fundamentals_report"],
+            "polymarket_report": final_state.get("polymarket_report", ""),
             "investment_debate_state": {
                 "bull_history": final_state["investment_debate_state"]["bull_history"],
                 "bear_history": final_state["investment_debate_state"]["bear_history"],

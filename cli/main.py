@@ -58,6 +58,7 @@ class MessageBuffer:
     # Fixed teams that always run (not user-selectable)
     FIXED_AGENTS = {
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
+        "Polymarket Review": ["Polymarket Review"],
         "Trading Team": ["Trader"],
         "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
         "Portfolio Management": ["Portfolio Manager"],
@@ -80,6 +81,7 @@ class MessageBuffer:
         "news_report": ("news", "News Analyst"),
         "fundamentals_report": ("fundamentals", "Fundamentals Analyst"),
         "investment_plan": (None, "Research Manager"),
+        "polymarket_report": (None, "Polymarket Review"),
         "trader_investment_plan": (None, "Trader"),
         "final_trade_decision": (None, "Portfolio Manager"),
     }
@@ -221,6 +223,10 @@ class MessageBuffer:
             report_parts.append("## Research Team Decision")
             report_parts.append(f"{self.report_sections['investment_plan']}")
 
+        if self.report_sections.get("polymarket_report"):
+            report_parts.append("## Polymarket Review")
+            report_parts.append(f"{self.report_sections['polymarket_report']}")
+
         # Trading Team Reports
         if self.report_sections.get("trader_investment_plan"):
             report_parts.append("## Trading Team Plan")
@@ -246,6 +252,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
             "complete_rule": "完整分析报告",
             "analyst_section": "I. 分析师团队报告",
             "research_section": "II. 研究团队决策",
+            "polymarket_section": "Polymarket 复核",
             "trading_section": "III. 交易团队计划",
             "risk_section": "IV. 风险管理团队决策",
             "portfolio_section": "V. 组合经理决策",
@@ -257,6 +264,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
                 "Bull Researcher": "看多研究员",
                 "Bear Researcher": "看空研究员",
                 "Research Manager": "研究经理",
+                "Polymarket Review": "Polymarket 复核",
                 "Trader": "交易员",
                 "Aggressive Analyst": "激进风险分析师",
                 "Conservative Analyst": "保守风险分析师",
@@ -269,6 +277,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
                 "news_report": "新闻分析",
                 "fundamentals_report": "基本面分析",
                 "investment_plan": "研究团队决策",
+                "polymarket_report": "Polymarket 复核",
                 "trader_investment_plan": "交易团队计划",
                 "final_trade_decision": "组合管理决策",
             },
@@ -280,6 +289,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
         "complete_rule": "Complete Analysis Report",
         "analyst_section": "I. Analyst Team Reports",
         "research_section": "II. Research Team Decision",
+        "polymarket_section": "Polymarket Review",
         "trading_section": "III. Trading Team Plan",
         "risk_section": "IV. Risk Management Team Decision",
         "portfolio_section": "V. Portfolio Manager Decision",
@@ -291,6 +301,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
             "Bull Researcher": "Bull Researcher",
             "Bear Researcher": "Bear Researcher",
             "Research Manager": "Research Manager",
+            "Polymarket Review": "Polymarket Review",
             "Trader": "Trader",
             "Aggressive Analyst": "Aggressive Analyst",
             "Conservative Analyst": "Conservative Analyst",
@@ -303,6 +314,7 @@ def _report_text(report_language: str) -> dict[str, Any]:
             "news_report": "News Analysis",
             "fundamentals_report": "Fundamentals Analysis",
             "investment_plan": "Research Team Decision",
+            "polymarket_report": "Polymarket Review",
             "trader_investment_plan": "Trading Team Plan",
             "final_trade_decision": "Portfolio Management Decision",
         },
@@ -368,6 +380,7 @@ def update_display(layout, spinner_text=None, stats_handler=None, start_time=Non
             "Fundamentals Analyst",
         ],
         "Research Team": ["Bull Researcher", "Bear Researcher", "Research Manager"],
+        "Polymarket Review": ["Polymarket Review"],
         "Trading Team": ["Trader"],
         "Risk Management": ["Aggressive Analyst", "Neutral Analyst", "Conservative Analyst"],
         "Portfolio Management": ["Portfolio Manager"],
@@ -549,7 +562,7 @@ def get_user_selections():
     welcome_content = f"{welcome_ascii}\n"
     welcome_content += "[bold green]TradingAgents: Multi-Agents LLM Financial Trading Framework - CLI[/bold green]\n\n"
     welcome_content += "[bold]Workflow Steps:[/bold]\n"
-    welcome_content += "I. Analyst Team → II. Research Team → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
+    welcome_content += "I. Analyst Team → II. Research Team → Polymarket Review → III. Trader → IV. Risk Management → V. Portfolio Management\n\n"
     welcome_content += (
         "[dim]Built by [Tauric Research](https://github.com/TauricResearch)[/dim]"
     )
@@ -855,8 +868,8 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path, report_langua
         sections.append(f"## {labels['analyst_section']}\n\n{content}")
 
     # 2. Research
+    research_dir = save_path / "2_research"
     if final_state.get("investment_debate_state"):
-        research_dir = save_path / "2_research"
         debate = final_state["investment_debate_state"]
         research_parts = []
         if debate.get("bull_history"):
@@ -874,6 +887,17 @@ def save_report_to_disk(final_state, ticker: str, save_path: Path, report_langua
         if research_parts:
             content = "\n\n".join(f"### {name}\n{body}" for name, body in research_parts)
             sections.append(f"## {labels['research_section']}\n\n{content}")
+
+    if final_state.get("polymarket_report"):
+        research_dir.mkdir(exist_ok=True)
+        (research_dir / "polymarket.md").write_text(
+            final_state["polymarket_report"],
+            encoding="utf-8",
+        )
+        sections.append(
+            f"## {labels['polymarket_section']}\n\n"
+            f"### {titles['Polymarket Review']}\n{final_state['polymarket_report']}"
+        )
 
     # 3. Trading
     if final_state.get("trader_investment_plan"):
@@ -962,6 +986,17 @@ def display_complete_report(final_state, report_language: str):
             console.print(Panel(f"[bold]{labels['research_section']}[/bold]", border_style="magenta"))
             for title, content in research:
                 console.print(Panel(Markdown(content), title=title, border_style="blue", padding=(1, 2)))
+
+    if final_state.get("polymarket_report"):
+        console.print(Panel(f"[bold]{labels['polymarket_section']}[/bold]", border_style="cyan"))
+        console.print(
+            Panel(
+                Markdown(final_state["polymarket_report"]),
+                title=titles["Polymarket Review"],
+                border_style="blue",
+                padding=(1, 2),
+            )
+        )
 
     # III. Trading Team
     if final_state.get("trader_investment_plan"):
@@ -1314,8 +1349,27 @@ def run_analysis(
                     message_buffer.update_report_section(
                         "investment_plan", f"### Research Manager Decision\n{judge}"
                     )
-                    update_research_team_status("completed")
-                    message_buffer.update_agent_status("Trader", "in_progress")
+                    if message_buffer.agent_status.get("Research Manager") != "completed":
+                        update_research_team_status("completed")
+                    if (
+                        message_buffer.report_sections.get("polymarket_report") is None
+                        and message_buffer.agent_status.get("Polymarket Review") == "pending"
+                    ):
+                        message_buffer.update_agent_status("Polymarket Review", "in_progress")
+                    elif (
+                        message_buffer.agent_status.get("Trader") == "pending"
+                        and message_buffer.report_sections.get("polymarket_report") is not None
+                    ):
+                        message_buffer.update_agent_status("Trader", "in_progress")
+
+            if chunk.get("polymarket_report"):
+                message_buffer.update_report_section(
+                    "polymarket_report", chunk["polymarket_report"]
+                )
+                if message_buffer.agent_status.get("Polymarket Review") != "completed":
+                    message_buffer.update_agent_status("Polymarket Review", "completed")
+                    if message_buffer.agent_status.get("Trader") == "pending":
+                        message_buffer.update_agent_status("Trader", "in_progress")
 
             # Trading Team
             if chunk.get("trader_investment_plan"):

@@ -1,0 +1,24 @@
+[
+  {
+    "id": "event-macro-1",
+    "title": "Federal Reserve path",
+    "markets": [
+      {
+        "id": "macro-market-1",
+        "slug": "fed-rate-cut-june",
+        "question": "Will the Federal Reserve cut rates by June?",
+        "eventId": "event-macro-1",
+        "conditionId": "condition-macro-1",
+        "active": true,
+        "liquidity": 90000,
+        "volume": 210000,
+        "tokens": [
+          {
+            "tokenId": "token-macro-yes",
+            "outcome": "Yes"
+          }
+        ]
+      }
+    ]
+  }
+]

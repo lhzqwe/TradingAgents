@@ -1,3 +1,6 @@
 [submodule "external/twitter-cli"]
 	path = external/twitter-cli
 	url = https://github.com/public-clis/twitter-cli.git
+[submodule "external/polymarket-cli"]
+	path = external/polymarket-cli
+	url = https://github.com/Polymarket/polymarket-cli

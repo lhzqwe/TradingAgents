@@ -1,7 +1,13 @@
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 import time
 import json
-from tradingagents.agents.utils.agent_utils import get_news, get_global_news
+from tradingagents.agents.utils.agent_utils import (
+    get_news,
+    get_global_news,
+    get_insider_transactions,
+    get_polymarket_macro_context,
+    get_polymarket_geopolitical_context,
+)
 from tradingagents.dataflows.config import get_config
 
 
@@ -13,10 +19,14 @@ def create_news_analyst(llm):
         tools = [
             get_news,
             get_global_news,
+            get_insider_transactions,
+            get_polymarket_macro_context,
+            get_polymarket_geopolitical_context,
         ]
 
         system_message = (
-            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, and get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news. Do not simply state the trends are mixed, provide detailed and finegrained analysis and insights that may help traders make decisions."
+            "You are a news researcher tasked with analyzing recent news and trends over the past week. Please write a comprehensive report of the current state of the world that is relevant for trading and macroeconomics. Use the available tools: get_news(query, start_date, end_date) for company-specific or targeted news searches, get_global_news(curr_date, look_back_days, limit) for broader macroeconomic news, get_insider_transactions(ticker, end_date, start_date, limit) for recent insider activity when it is relevant, get_polymarket_macro_context(company_name, trade_date) for market-implied macro expectation reference, and get_polymarket_geopolitical_context(ticker, company_name, trade_date) for market-implied geopolitical expectation reference. Treat Polymarket macro and geopolitical outputs as reference signals rather than primary direction drivers. You must identify which macro and geopolitical events are proximate catalysts for this company or asset, and explain the transmission path through revenue, supply chain, regulation, energy, rates, or risk appetite. If Polymarket reference signals materially conflict with traditional news or macro interpretation, add a short section titled `## Risk Warning` that explicitly names the mismatch. Do not simply state the trends are mixed, provide detailed and finegrained analysis and insights that may help traders make decisions."
+            + """ Your report must include sections titled `## Polymarket Macro Reference` and `## Polymarket Geopolitical Reference`."""
             + """ Make sure to append a Markdown table at the end of the report to organize key points in the report, organized and easy to read."""
         )
 

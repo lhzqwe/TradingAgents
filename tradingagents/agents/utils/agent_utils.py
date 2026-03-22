@@ -21,6 +21,10 @@ from tradingagents.agents.utils.news_data_tools import (
     get_insider_transactions,
     get_global_news
 )
+from tradingagents.agents.utils.prediction_market_tools import (
+    get_polymarket_macro_context,
+    get_polymarket_geopolitical_context,
+)
 
 def create_msg_delete():
     def delete_messages(state):

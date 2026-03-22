@@ -11,6 +11,11 @@ from .y_finance import (
     get_insider_transactions as get_yfinance_insider_transactions,
 )
 from .twitter_cli_social import get_social_posts_twitter_cli
+from .polymarket_cli import (
+    get_polymarket_company_context as get_polymarket_company_context_cli,
+    get_polymarket_macro_context as get_polymarket_macro_context_cli,
+    get_polymarket_geopolitical_context as get_polymarket_geopolitical_context_cli,
+)
 from .yfinance_news import get_news_yfinance, get_global_news_yfinance
 from .tigeropen_stock import get_stock_data_tigeropen, get_indicator_tigeropen
 from .alpha_vantage import (
@@ -101,6 +106,14 @@ TOOLS_CATEGORIES = {
             "get_global_news",
             "get_insider_transactions",
         ]
+    },
+    "prediction_market_data": {
+        "description": "Prediction market context",
+        "tools": [
+            "get_polymarket_company_context",
+            "get_polymarket_macro_context",
+            "get_polymarket_geopolitical_context",
+        ]
     }
 }
 
@@ -109,6 +122,7 @@ VENDOR_LIST = [
     "alpha_vantage",
     "tigeropen",
     "twitter_cli",
+    "polymarket_cli",
 ]
 
 # Mapping of methods to their vendor-specific implementations
@@ -145,6 +159,16 @@ VENDOR_METHODS = {
     # social_data
     "get_social_posts": {
         "twitter_cli": get_social_posts_twitter_cli,
+    },
+    # prediction_market_data
+    "get_polymarket_company_context": {
+        "polymarket_cli": get_polymarket_company_context_cli,
+    },
+    "get_polymarket_macro_context": {
+        "polymarket_cli": get_polymarket_macro_context_cli,
+    },
+    "get_polymarket_geopolitical_context": {
+        "polymarket_cli": get_polymarket_geopolitical_context_cli,
     },
     # news_data
     "get_news": {

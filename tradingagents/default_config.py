@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
         "fundamental_data": "yfinance",      # Options: alpha_vantage, yfinance
         "social_data": "twitter_cli",        # Options: twitter_cli
         "news_data": "yfinance",             # Options: alpha_vantage, yfinance
+        "prediction_market_data": "polymarket_cli",  # Options: polymarket_cli
     },
     "market_routing": {
         "hk_stock_vendor": "tigeropen",
@@ -56,6 +57,27 @@ DEFAULT_CONFIG = {
         "timeout_seconds": 30,
         "query_overrides": {},
     },
+    "polymarket_cli_path": os.getenv("POLYMARKET_CLI_PATH"),
+    "polymarket_enabled": True,
+    "polymarket_mode": "read_only",
+    "polymarket_max_markets": 6,
+    "polymarket_comments_limit": 20,
+    "polymarket_price_history_interval": "1d",
+    "polymarket_price_history_fidelity": 30,
+    "polymarket_historical_mode": "guarded",
+    "polymarket_live_window_days": 2,
+    "polymarket_geo_watchlist": [
+        "China Taiwan",
+        "US China tariffs",
+        "Russia Ukraine",
+        "Iran Israel",
+        "Middle East oil",
+        "sanctions",
+        "export controls",
+        "Federal Reserve",
+        "recession",
+    ],
+    "polymarket_query_overrides": {},
     # Tool-level configuration (takes precedence over category-level)
     "tool_vendors": {
         # Example: "get_stock_data": "alpha_vantage",  # Override category default

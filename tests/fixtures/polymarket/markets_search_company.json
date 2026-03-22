@@ -1,0 +1,42 @@
+[
+  {
+    "id": "market-1",
+    "slug": "apple-earnings-beat",
+    "question": "Will Apple beat earnings this quarter?",
+    "eventId": "event-1",
+    "conditionId": "condition-1",
+    "active": true,
+    "liquidity": 50000,
+    "volume": 120000,
+    "tokens": [
+      {
+        "tokenId": "token-yes-1",
+        "outcome": "Yes"
+      },
+      {
+        "tokenId": "token-no-1",
+        "outcome": "No"
+      }
+    ]
+  },
+  {
+    "id": "market-2",
+    "slug": "apple-guidance-cut",
+    "question": "Will Apple cut guidance this quarter?",
+    "eventId": "event-2",
+    "conditionId": "condition-2",
+    "active": true,
+    "liquidity": 28000,
+    "volume": 64000,
+    "tokens": [
+      {
+        "tokenId": "token-yes-2",
+        "outcome": "Yes"
+      },
+      {
+        "tokenId": "token-no-2",
+        "outcome": "No"
+      }
+    ]
+  }
+]

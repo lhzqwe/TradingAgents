@@ -1,0 +1,20 @@
+{
+  "id": "market-1",
+  "slug": "apple-earnings-beat",
+  "question": "Will Apple beat earnings this quarter?",
+  "eventId": "event-1",
+  "conditionId": "condition-1",
+  "active": true,
+  "liquidity": 50000,
+  "volume": 120000,
+  "tokens": [
+    {
+      "tokenId": "token-yes-1",
+      "outcome": "Yes"
+    },
+    {
+      "tokenId": "token-no-1",
+      "outcome": "No"
+    }
+  ]
+}

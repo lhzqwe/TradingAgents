@@ -262,10 +262,18 @@ def test_get_social_posts_uses_query_override_and_inclusive_until(
     assert search_args[search_args.index("--until") + 1] == "2026-03-22"
 
 
-def test_social_tool_node_only_exposes_get_social_posts():
+def test_social_tool_node_exposes_social_and_polymarket_tools():
     graph = TradingAgentsGraph.__new__(TradingAgentsGraph)
     tool_nodes = TradingAgentsGraph._create_tool_nodes(graph)
 
-    assert set(tool_nodes["social"].tools_by_name) == {"get_social_posts"}
+    assert set(tool_nodes["social"].tools_by_name) == {
+        "get_social_posts",
+    }
+    assert set(tool_nodes["market"].tools_by_name) == {
+        "get_stock_data",
+        "get_indicators",
+    }
     assert "get_news" in tool_nodes["news"].tools_by_name
     assert "get_global_news" in tool_nodes["news"].tools_by_name
+    assert "get_polymarket_macro_context" in tool_nodes["news"].tools_by_name
+    assert "get_polymarket_geopolitical_context" in tool_nodes["news"].tools_by_name
